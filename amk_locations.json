@@ -1,0 +1,103 @@
+{
+  "checkpoints": {
+    "Cheng San Community Club": {
+      "lat": 1.36766,
+      "lng": 103.85431,
+      "source": "OneMap API - Block 435 Ang Mo Kio Avenue 10 (temp office), S560435",
+      "address": "435 Ang Mo Kio Avenue 10, Singapore 560435"
+    },
+    "Dragon Playground": {
+      "lat": 1.36980,
+      "lng": 103.84943,
+      "source": "Google Maps / estimated - Block 28 Ang Mo Kio Avenue 3",
+      "address": "Block 28 Ang Mo Kio Avenue 3, Singapore 560028"
+    },
+    "AMK Town Centre (Heart AMK)": {
+      "lat": 1.36939,
+      "lng": 103.84848,
+      "source": "OneMap API - AMK Hub, Block 53 Ang Mo Kio Avenue 3",
+      "address": "53 Ang Mo Kio Avenue 3, Singapore 569933"
+    },
+    "Masjid Al-Muttaqin": {
+      "lat": 1.37052,
+      "lng": 103.84590,
+      "source": "OneMap API - Block 5140 Ang Mo Kio Avenue 6, S569844",
+      "address": "5140 Ang Mo Kio Avenue 6, Singapore 569844",
+      "note": "Actual address is on Avenue 6, not Avenue 1 as stated in request"
+    },
+    "Church of Christ the King": {
+      "lat": 1.36199,
+      "lng": 103.85241,
+      "source": "OneMap API / Wikipedia - Block 2221 Ang Mo Kio Avenue 8",
+      "address": "2221 Ang Mo Kio Avenue 8, Singapore 569809"
+    },
+    "ActiveSG Sport Park @ Teck Ghee": {
+      "lat": 1.36320,
+      "lng": 103.84992,
+      "source": "OpenStreetMap Nominatim - 1771 Ang Mo Kio Avenue 1",
+      "address": "1771 Ang Mo Kio Avenue 1, Singapore 569978"
+    },
+    "Teck Ghee Court Market & Food Centre": {
+      "lat": 1.36411,
+      "lng": 103.84824,
+      "source": "OneMap API - Block 341 Ang Mo Kio Avenue 1",
+      "address": "341 Ang Mo Kio Avenue 1, Singapore 560341"
+    },
+    "Kebun Baru Birdsinging Club": {
+      "lat": 1.36720,
+      "lng": 103.83920,
+      "source": "Estimated - along Ang Mo Kio Avenue 1, near Block 216-218",
+      "address": "Along Ang Mo Kio Avenue 1 (near Block 216-218), Singapore",
+      "note": "Coordinates estimated based on nearby blocks; birdsinging corner runs along AMK Ave 1 near Kebun Baru Market"
+    },
+    "Kebun Baru Market & Food Centre": {
+      "lat": 1.36681,
+      "lng": 103.83914,
+      "source": "OneMap API - Block 226D Ang Mo Kio Avenue 1",
+      "address": "226D Ang Mo Kio Avenue 1, Singapore 564226"
+    },
+    "Ang Mo Kio Joint Temple": {
+      "lat": 1.37170,
+      "lng": 103.84640,
+      "source": "Estimated - near Block 722/724 Ang Mo Kio Avenue 6",
+      "address": "Near Block 722 Ang Mo Kio Avenue 6, Singapore 560722",
+      "note": "Coordinates estimated based on nearby Block 724 (Market & Hawker Centre at 1.37217, 103.84651). OneMap returned Block 722 at Avenue 8 instead of Avenue 6."
+    },
+    "Merlion (Ang Mo Kio)": {
+      "lat": 1.36478,
+      "lng": 103.84112,
+      "source": "OpenStreetMap - Merlion Guardian Statue, Ang Mo Kio Avenue 1",
+      "address": "Ang Mo Kio Avenue 1 (near Block 218-220), Singapore"
+    },
+    "Ang Mo Kio Community Centre": {
+      "lat": 1.36686,
+      "lng": 103.84069,
+      "source": "OneMap API - Block 795 Ang Mo Kio Avenue 1",
+      "address": "795 Ang Mo Kio Avenue 1, Singapore 569976"
+    }
+  },
+  "amk_polygon": [
+    {"lat": 1.3610, "lng": 103.8355, "label": "SW - AMK Ave 1 & Upper Thomson Rd junction"},
+    {"lat": 1.3605, "lng": 103.8535, "label": "S - Braddell Road / AMK Ave 3 south"},
+    {"lat": 1.3630, "lng": 103.8695, "label": "SE - CTE / AMK Ave 3 east"},
+    {"lat": 1.3730, "lng": 103.8710, "label": "E - Seletar Expressway / AMK Ave 3 north"},
+    {"lat": 1.3870, "lng": 103.8670, "label": "NE - Yio Chu Kang Rd / AMK Ave 10 area"},
+    {"lat": 1.3930, "lng": 103.8520, "label": "N - Yishun boundary / AMK Ave 12 area"},
+    {"lat": 1.3900, "lng": 103.8350, "label": "NW - AMK Ave 5 / Upper Thomson Rd"},
+    {"lat": 1.3750, "lng": 103.8280, "label": "W - Central Water Catchment / Upper Thomson Rd"},
+    {"lat": 1.3620, "lng": 103.8280, "label": "W-SW - Thomson Nature Park area"}
+  ],
+  "notes": {
+    "sources": "Coordinates sourced from OneMap API (Singapore government), OpenStreetMap Nominatim, Wikipedia, and Google Maps where API data was unavailable.",
+    "estimated_coordinates": [
+      "Kebun Baru Birdsinging Club - estimated based on nearby known block coordinates along AMK Ave 1",
+      "Ang Mo Kio Joint Temple - estimated based on nearby Block 724 AMK Ave 6 coordinates",
+      "Dragon Playground - estimated from Google Maps URL coordinates for Block 28 AMK Ave 3"
+    ],
+    "polygon_note": "AMK polygon is a simplified 9-point approximation of the Ang Mo Kio planning area boundary. It covers the general residential town area and does not precisely match the electoral GRC boundary (which includes parts of Hougang, Sengkang). For exact electoral boundaries, refer to the Elections Department Singapore.",
+    "address_corrections": {
+      "Masjid Al-Muttaqin": "The actual address is Block 5140 Ang Mo Kio Avenue 6 (not Avenue 1 as stated in request)",
+      "Ang Mo Kio Joint Temple": "OneMap returns Block 722 at Avenue 8, not Avenue 6. The Joint Temple near Avenue 6 may be at a different block number."
+    }
+  }
+}

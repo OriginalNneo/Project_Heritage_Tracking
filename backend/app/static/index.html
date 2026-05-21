@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Heritage Trail - Race Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; letter-spacing: -0.01em; line-height: 1.5; }
+
+    .app { display: flex; flex-direction: column; height: 100vh; }
+
+    header { background: linear-gradient(135deg, #1e293b 0%, #0f2847 50%, #1e293b 100%); border-bottom: 1px solid rgba(56, 189, 248, 0.15); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; height: 60px; flex-shrink: 0; position: relative; box-shadow: 0 4px 30px rgba(56, 189, 248, 0.08), 0 1px 0 rgba(56, 189, 248, 0.1); }
+    header::after { content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, rgba(56, 189, 248, 0.4), transparent); }
+    header h1 { font-size: 18px; font-weight: 700; color: #e2e8f0; letter-spacing: -0.01em; }
+    header h1 span { color: #38bdf8; }
+    .header-right { display: flex; align-items: center; gap: 12px; }
+    .header-center { display: flex; align-items: center; justify-content: center; position: absolute; left: 50%; transform: translateX(-50%); }
+    .race-timer { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; color: #64748b; letter-spacing: 0.05em; transition: color 0.3s, text-shadow 0.3s; }
+    .race-timer.timer-active { color: #f1f5f9; text-shadow: 0 0 20px rgba(56, 189, 248, 0.3); }
+    .status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; transition: all 0.3s; }
+    .status-pill.status-in-progress { background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); }
+    .status-pill.status-paused { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .status-pill.status-not-started { background: rgba(100, 116, 139, 0.15); color: #94a3b8; border: 1px solid rgba(100, 116, 139, 0.2); }
+    .status-pill.status-completed { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); }
+    .status-dot { width: 9px; height: 9px; border-radius: 50%; background: #ef4444; }
+    .status-dot.active { background: #22c55e; animation: pulse 2s infinite; }
+    .status-dot.paused { background: #f59e0b; }
+    .conn-dot { width: 7px; height: 7px; border-radius: 50%; background: #64748b; }
+    .conn-dot.live { background: #22c55e; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    .sidebar-toggle { display: none; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid #334155; border-radius: 8px; background: #0f172a; color: #94a3b8; cursor: pointer; font-size: 14px; flex-shrink: 0; }
+    .sidebar-toggle:hover { background: #334155; color: #e2e8f0; }
+    .settings-btn { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid #334155; border-radius: 8px; background: #0f172a; color: #94a3b8; cursor: pointer; font-size: 14px; flex-shrink: 0; transition: all 0.2s; }
+    .settings-btn:hover { background: #334155; color: #e2e8f0; }
+    .settings-btn.active { background: #0ea5e9; color: white; border-color: #0ea5e9; }
+    .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 99; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+    .sidebar-overlay.active { opacity: 1; pointer-events: auto; }
+
+    nav { background: #162032; border-bottom: 1px solid #334155; display: flex; gap: 2px; padding: 6px 12px; overflow-x: auto; flex-shrink: 0; position: relative; }
+    nav::-webkit-scrollbar { height: 0; }
+    .tab { padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: color 0.25s, background 0.25s; border: 1px solid transparent; background: transparent; color: #94a3b8; position: relative; z-index: 1; }
+    .tab:hover { background: rgba(255,255,255,0.05); color: #e2e8f0; }
+    .tab.active { color: white; border-color: transparent; background: transparent; }
+    .tab.all-tab { background: rgba(14,165,233,0.15); color: #38bdf8; border-color: rgba(14,165,233,0.3); }
+    .tab.all-tab.active { background: transparent; color: white; border-color: transparent; }
+    .tab-indicator { position: absolute; bottom: 6px; height: calc(100% - 12px); background: #0ea5e9; border-radius: 8px; transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1); pointer-events: none; z-index: 0; }
+
+    .main { display: flex; flex: 1; overflow: hidden; }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes fadeOut { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(4px); } }
+    .view-enter { animation: fadeIn 0.25s ease-out forwards; }
+    .view-exit { animation: fadeOut 0.15s ease-in forwards; }
+
+    #mapView, #teamView { display: flex; flex: 1; overflow: hidden; }
+    #teamView { display: none; flex-direction: column; }
+    #settingsView { display: none; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; flex: 1; width: 100%; }
+    #mapView.hidden { display: none; }
+    #teamView.visible { display: flex; }
+
+    #map { width: 100%; height: 100%; }
+    .leaflet-container { background: #0a1a2e; }
+    .leaflet-control-zoom { display: none; }
+    .leaflet-control-attribution { display: none; }
+    .leaflet-popup-content-wrapper { background: #1e293b; color: #e2e8f0; border-radius: 12px; border: 1px solid #334155; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+    .leaflet-popup-tip { background: #1e293b; }
+    @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+    @keyframes cpPulseGlow { 0% { transform: scale(1); opacity: 0.7; } 50% { transform: scale(1.35); opacity: 0; } 100% { transform: scale(1); opacity: 0; } }
+    @keyframes cpBurst { 0% { transform: scale(1); } 30% { transform: scale(1.25); } 60% { transform: scale(0.95); } 100% { transform: scale(1); } }
+    @keyframes cpBurstRing { 0% { transform: scale(0.8); opacity: 0.9; } 100% { transform: scale(2.2); opacity: 0; } }
+    .cp-pulse-ring { position: absolute; top: -3px; left: -3px; width: 48px; height: 48px; border-radius: 50%; border: 2px solid #f59e0b; pointer-events: none; animation: cpPulseGlow 2.2s ease-out infinite; }
+    .cp-newly-done { animation: cpBurst 0.6s ease-out forwards !important; }
+    .cp-burst-ring { position: absolute; top: -3px; left: -3px; width: 48px; height: 48px; border-radius: 50%; border: 3px solid #22c55e; pointer-events: none; animation: cpBurstRing 0.7s ease-out forwards; }
+    .map-legend { position: absolute; bottom: 16px; left: 16px; z-index: 1000; background: rgba(15, 23, 42, 0.88); border: 1px solid #334155; border-radius: 12px; padding: 12px 14px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); pointer-events: none; }
+    .map-legend-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #94a3b8; margin-bottom: 8px; }
+    .map-legend-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+    .map-legend-row:last-child { margin-bottom: 0; }
+    .map-legend-dot { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; color: white; flex-shrink: 0; position: relative; }
+    .map-legend-dot.unvisited { border: 2px solid #f59e0b; background: #334155; }
+    .map-legend-dot.completed { border: 2px solid #22c55e; background: #166534; }
+    .map-legend-dot.team-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.3); background: hsl(190, 75%, 60%); }
+    .map-legend-count { background: #22c55e; color: white; font-size: 8px; padding: 1px 5px; border-radius: 8px; font-weight: 700; margin-left: 2px; }
+    .map-legend-label { font-size: 11px; color: #cbd5e1; display: flex; align-items: center; gap: 4px; }
+
+    .sidebar { background: #1e293b; border-left: 1px solid #334155; overflow-y: auto; display: flex; flex-direction: column; width: 340px; flex-shrink: 0; }
+    .sidebar-section { padding: 14px; border-bottom: 1px solid #334155; }
+    .sidebar-section h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #94a3b8; margin-bottom: 10px; }
+
+    .team-card { background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 10px; margin-bottom: 0; cursor: pointer; position: relative; transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s, border-color 0.3s, box-shadow 0.3s; }
+    .team-card:hover { border-color: #475569; }
+    .team-card.highlight { border-color: #38bdf8; box-shadow: 0 0 16px rgba(56, 189, 248, 0.2); }
+    .team-card[data-rank="1"] { border-left: 3px solid #fbbf24; }
+    .team-card[data-rank="2"] { border-left: 3px solid #94a3b8; }
+    .team-card[data-rank="3"] { border-left: 3px solid #cd7f32; }
+    .team-card[data-rank] { border-left-width: 3px; border-left-color: #1e40af; }
+    .team-card .card-header { display: flex; align-items: center; gap: 8px; }
+    .team-card .name { font-weight: 600; font-size: 13px; flex: 1; }
+    .team-card .meta { display: flex; justify-content: space-between; margin-top: 4px; font-size: 11px; color: #94a3b8; }
+    .team-card .score { color: #fbbf24; font-weight: 600; }
+    .team-card .progress-bar { margin-top: 6px; height: 4px; background: #334155; border-radius: 2px; overflow: hidden; }
+    .team-card .progress-fill { height: 100%; background: linear-gradient(90deg, #22c55e, #34d399); border-radius: 2px; transition: width 0.5s; }
+    .team-card .cp-dots { display: flex; gap: 3px; margin-top: 6px; flex-wrap: wrap; }
+    .team-card .cp-dot { width: 16px; height: 16px; border-radius: 50%; background: #334155; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; color: #64748b; transition: all 0.4s; }
+    .team-card .cp-dot.done { background: #22c55e; color: white; box-shadow: 0 0 6px rgba(34, 197, 94, 0.5); }
+    .team-card .pace { font-size: 10px; color: #64748b; margin-top: 4px; }
+    .team-card .pace span { color: #38bdf8; font-weight: 600; }
+    .team-card.rank-up { animation: flashUp 0.8s ease; }
+    .team-card.rank-down { animation: flashDown 0.8s ease; }
+    .team-card.rank-new { animation: flashNew 0.8s ease; }
+    .rank-badge { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; font-size: 11px; font-weight: 800; flex-shrink: 0; }
+    .rank-badge.gold { background: #fbbf24; color: #1e293b; }
+    .rank-badge.silver { background: #94a3b8; color: #1e293b; }
+    .rank-badge.bronze { background: #cd7f32; color: #fff; }
+    .rank-badge.default { background: #334155; color: #94a3b8; }
+    .team-search { width: 100%; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 7px 10px 7px 32px; font-size: 12px; color: #e2e8f0; outline: none; transition: border-color 0.2s; }
+    .team-search::placeholder { color: #475569; }
+    .team-search:focus { border-color: #0ea5e9; }
+    .search-wrap { position: relative; margin-bottom: 10px; }
+    .search-wrap::before { content: "⌕"; position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #475569; font-size: 14px; pointer-events: none; }
+    .leaderboard-list { display: flex; flex-direction: column; gap: 6px; }
+    @keyframes flashUp { 0% { background: #0f172a; } 30% { background: rgba(34, 197, 94, 0.12); } 100% { background: #0f172a; } }
+    @keyframes flashDown { 0% { background: #0f172a; } 30% { background: rgba(239, 68, 68, 0.1); } 100% { background: #0f172a; } }
+    @keyframes flashNew { 0% { background: #0f172a; } 30% { background: rgba(56, 189, 248, 0.1); } 100% { background: #0f172a; } }
+
+    .status-badge { padding: 2px 6px; border-radius: 10px; font-size: 10px; font-weight: 500; }
+    .status-badge.in_progress { background: #166534; color: #4ade80; }
+    .status-badge.completed { background: #1e3a5f; color: #60a5fa; }
+    .status-badge.not_started { background: #374151; color: #9ca3af; }
+
+    .event-log { flex: 1; overflow-y: auto; }
+    .event-item { padding: 6px 10px; border-bottom: 1px solid #1e293b; font-size: 12px; }
+    .event-item .time { font-size: 10px; color: #64748b; }
+    .event-item.checkpoint_unlocked { border-left: 3px solid #22c55e; }
+    .event-item.team_completed { border-left: 3px solid #38bdf8; }
+    .event-item.race_started { border-left: 3px solid #f59e0b; }
+
+    .controls { display: flex; gap: 6px; flex-wrap: wrap; }
+    .btn { padding: 6px 14px; border: none; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 5px; position: relative; }
+    .btn:disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
+    .btn-primary { background: #2563eb; color: white; }
+    .btn-primary:not(:disabled):hover { background: #1d4ed8; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(37,99,235,0.4); }
+    .btn-primary:not(:disabled):active { transform: translateY(0); box-shadow: none; }
+    .btn-warning { background: #d97706; color: white; }
+    .btn-warning:not(:disabled):hover { background: #b45309; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(217,119,6,0.4); }
+    .btn-warning:not(:disabled):active { transform: translateY(0); box-shadow: none; }
+    .btn-success { background: #16a34a; color: white; }
+    .btn-success:not(:disabled):hover { background: #15803d; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(22,163,74,0.4); }
+    .btn-success:not(:disabled):active { transform: translateY(0); box-shadow: none; }
+    .btn-sm { padding: 4px 8px; font-size: 11px; }
+    .btn .btn-icon { font-size: 13px; line-height: 1; }
+    .btn[data-tooltip]:hover::after { content: attr(data-tooltip); position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: #334155; color: #e2e8f0; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 500; white-space: nowrap; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.3); pointer-events: none; }
+    .btn[data-tooltip]:hover::before { content: ''; position: absolute; bottom: calc(100% + 2px); left: 50%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: #334155; z-index: 100; pointer-events: none; }
+
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 10000; opacity: 0; visibility: hidden; transition: opacity 0.2s, visibility 0.2s; }
+    .modal-overlay.open { opacity: 1; visibility: visible; }
+    .modal-box { background: #1e293b; border: 1px solid #334155; border-radius: 14px; padding: 24px; max-width: 380px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.5); transform: scale(0.9); transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1); }
+    .modal-overlay.open .modal-box { transform: scale(1); }
+    .modal-title { font-size: 16px; font-weight: 700; color: #f1f5f9; margin-bottom: 8px; }
+    .modal-message { font-size: 13px; color: #94a3b8; line-height: 1.5; margin-bottom: 20px; }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .modal-actions .btn { min-width: 80px; justify-content: center; padding: 8px 16px; font-size: 13px; }
+    .modal-cancel { background: #334155; color: #94a3b8; }
+    .modal-cancel:hover { background: #475569; color: #e2e8f0; transform: translateY(-1px); }
+    .modal-cancel:active { transform: translateY(0); }
+
+    .team-gallery { flex: 1; overflow-y: auto; padding: 24px; }
+    .team-gallery-header { margin-bottom: 24px; }
+    .team-gallery-header h2 { font-size: 24px; font-weight: 700; color: #f1f5f9; letter-spacing: -0.02em; line-height: 1.3; }
+    .team-gallery-header .stats { display: flex; gap: 16px; margin-top: 8px; }
+    .team-gallery-header .stat { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 10px 16px; }
+    .team-gallery-header .stat .label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 500; }
+    .team-gallery-header .stat .value { font-size: 20px; font-weight: 700; color: #f1f5f9; margin-top: 2px; letter-spacing: -0.02em; }
+
+    .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+    .gallery-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; overflow: hidden; transition: transform 0.3s cubic-bezier(0.4,0,0.2,1), box-shadow 0.3s cubic-bezier(0.4,0,0.2,1), border-color 0.2s; position: relative; }
+    .gallery-card:hover { border-color: #38bdf8; transform: translateY(-6px); box-shadow: 0 16px 40px rgba(0,0,0,0.45), 0 0 0 1px rgba(56,189,248,0.15); }
+    .gallery-card .card-img-wrap { position: relative; overflow: hidden; cursor: pointer; }
+    .gallery-card .card-img { width: 100%; aspect-ratio: 4/3; object-fit: cover; background: #334155; display: block; transition: transform 0.4s cubic-bezier(0.4,0,0.2,1); }
+    .gallery-card:hover .card-img { transform: scale(1.05); }
+    .gallery-card .card-img-gradient { position: absolute; inset: 0; background: linear-gradient(to top, rgba(15,23,42,0.7) 0%, transparent 50%); pointer-events: none; transition: opacity 0.3s; opacity: 0.6; }
+    .gallery-card:hover .card-img-gradient { opacity: 0.85; }
+    .gallery-card .card-hover-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(15,23,42,0.35); opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+    .gallery-card:hover .card-hover-overlay { opacity: 1; }
+    .gallery-card .magnify-icon { width: 48px; height: 48px; border-radius: 50%; background: rgba(255,255,255,0.15); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.25); display: flex; align-items: center; justify-content: center; transform: scale(0.7); transition: transform 0.3s cubic-bezier(0.4,0,0.2,1); }
+    .gallery-card:hover .magnify-icon { transform: scale(1); }
+    .gallery-card .magnify-icon svg { width: 22px; height: 22px; stroke: white; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .gallery-card .cp-status-badge { position: absolute; top: 10px; left: 10px; padding: 3px 10px; border-radius: 20px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; backdrop-filter: blur(6px); z-index: 2; }
+    .gallery-card .cp-status-badge.completed { background: rgba(34,197,94,0.2); color: #4ade80; border: 1px solid rgba(34,197,94,0.3); }
+    .gallery-card .cp-status-badge.uncompleted { background: rgba(245,158,11,0.2); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
+    .gallery-card .card-body { padding: 14px 14px 16px; }
+    .gallery-card .card-cp { font-weight: 700; font-size: 14px; color: #f1f5f9; display: flex; align-items: center; gap: 8px; }
+    .gallery-card .card-task { font-size: 12px; color: #94a3b8; margin-top: 6px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .gallery-card .card-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; padding-top: 10px; border-top: 1px solid #334155; }
+    .gallery-card .card-time { font-size: 11px; color: #64748b; display: flex; align-items: center; gap: 4px; }
+    .gallery-card .card-badge { display: inline-block; background: #0ea5e9; color: white; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 8px; }
+
+    .gallery-back-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 20px; border-radius: 100px; background: #1e293b; border: 1px solid #334155; color: #e2e8f0; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; margin-bottom: 24px; font-family: inherit; }
+    .gallery-back-btn:hover { background: #334155; border-color: #475569; transform: translateX(-2px); }
+    .gallery-back-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+
+    .lightbox-overlay { position: fixed; inset: 0; z-index: 10000; background: rgba(2,6,23,0.92); backdrop-filter: blur(12px); display: flex; align-items: center; justify-content: center; opacity: 0; visibility: hidden; transition: opacity 0.3s cubic-bezier(0.4,0,0.2,1), visibility 0.3s; }
+    .lightbox-overlay.active { opacity: 1; visibility: visible; }
+    .lightbox-container { position: relative; max-width: 90vw; max-height: 85vh; display: flex; flex-direction: column; align-items: center; transform: scale(0.92); transition: transform 0.35s cubic-bezier(0.4,0,0.2,1); }
+    .lightbox-overlay.active .lightbox-container { transform: scale(1); }
+    .lightbox-close { position: fixed; top: 16px; right: 20px; z-index: 10001; width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #e2e8f0; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; font-family: inherit; backdrop-filter: blur(8px); }
+    .lightbox-close:hover { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.3); transform: rotate(90deg); }
+    .lightbox-close svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2.5; stroke-linecap: round; }
+    .lightbox-img { max-width: 100%; max-height: 72vh; object-fit: contain; border-radius: 12px; box-shadow: 0 24px 64px rgba(0,0,0,0.5); }
+    .lightbox-info { margin-top: 20px; text-align: center; max-width: 600px; }
+    .lightbox-info .lb-cp { font-size: 18px; font-weight: 700; color: #f1f5f9; }
+    .lightbox-info .lb-task { font-size: 13px; color: #94a3b8; margin-top: 6px; line-height: 1.5; }
+    .lightbox-info .lb-meta { font-size: 12px; color: #64748b; margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 12px; }
+    .lightbox-nav { position: fixed; top: 50%; transform: translateY(-50%); z-index: 10001; width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #e2e8f0; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; font-family: inherit; backdrop-filter: blur(8px); }
+    .lightbox-nav:hover { background: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.3); }
+    .lightbox-nav.prev { left: 20px; }
+    .lightbox-nav.next { right: 20px; }
+    .lightbox-nav svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+    .lightbox-counter { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 10001; font-size: 12px; color: #64748b; font-weight: 600; padding: 6px 16px; border-radius: 100px; background: rgba(15,23,42,0.7); backdrop-filter: blur(8px); border: 1px solid #334155; }
+
+    .no-submissions { text-align: center; padding: 60px 20px; color: #64748b; }
+    .no-submissions .icon { font-size: 48px; margin-bottom: 12px; }
+
+    @keyframes skeleton-shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+    .skeleton {
+      background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+      background-size: 200% 100%;
+      animation: skeleton-shimmer 1.5s ease-in-out infinite;
+      border-radius: 8px;
+    }
+    .skeleton-card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 10px; margin-bottom: 6px; }
+    .skeleton-line { height: 12px; margin-bottom: 6px; }
+    .skeleton-line.w-75 { width: 75%; }
+    .skeleton-line.w-50 { width: 50%; }
+    .skeleton-line.w-100 { width: 100%; }
+    .skeleton-bar { height: 4px; margin-top: 6px; }
+    .skeleton-dots { display: flex; gap: 3px; margin-top: 6px; }
+    .skeleton-dot { width: 16px; height: 16px; border-radius: 50%; }
+    .skeleton-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+    .skeleton-gallery-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; overflow: hidden; }
+    .skeleton-img { width: 100%; aspect-ratio: 4/3; }
+    .skeleton-body { padding: 12px; }
+
+    @media (max-width: 1023px) {
+      .main { flex-direction: column; }
+      #mapView { flex-direction: column; }
+      .sidebar { position: fixed; bottom: 0; left: 0; right: 0; height: 55vh; width: 100%; border-left: none; border-top: 1px solid #334155; z-index: 100; transform: translateY(100%); transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1); border-radius: 16px 16px 0 0; }
+      .sidebar.open { transform: translateY(0); }
+      .sidebar-toggle { display: flex; }
+      .sidebar-overlay { display: block; }
+      .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+      .skeleton-gallery { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+      header h1 { font-size: 13px; }
+    }
+
+    @media (max-width: 767px) {
+      .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+      .skeleton-gallery { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+      .team-gallery { padding: 16px; }
+      .team-gallery-header h2 { font-size: 20px; }
+      .team-gallery-header .stats { gap: 10px; flex-wrap: wrap; }
+      .team-gallery-header .stat { padding: 8px 12px; }
+      .team-gallery-header .stat .value { font-size: 17px; }
+      nav { padding: 6px 8px; gap: 2px; }
+      .tab { padding: 6px 10px; font-size: 11px; }
+    }
+
+    @media (max-width: 480px) {
+      .gallery-grid { grid-template-columns: 1fr; }
+      .skeleton-gallery { grid-template-columns: 1fr; }
+      header { padding: 0 12px; }
+      header h1 { font-size: 12px; }
+      .team-gallery-header h2 { font-size: 18px; }
+    }
+
+    .broadcast-area { width: 100%; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 8px 10px; font-size: 12px; color: #e2e8f0; font-family: inherit; resize: vertical; min-height: 48px; max-height: 100px; outline: none; transition: border-color 0.2s; }
+    .broadcast-area::placeholder { color: #475569; }
+    .broadcast-area:focus { border-color: #0ea5e9; }
+    .msg-select { width: 100%; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 7px 10px; font-size: 12px; color: #e2e8f0; outline: none; font-family: inherit; }
+    .msg-select:focus { border-color: #0ea5e9; }
+    .msg-attach-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+    .msg-attach-btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border: 1px solid #334155; border-radius: 8px; background: #0f172a; color: #94a3b8; font-size: 12px; cursor: pointer; font-family: inherit; }
+    .msg-attach-btn:hover { background: #334155; color: #e2e8f0; }
+    .msg-file-label { font-size: 11px; color: #64748b; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .msg-clear-file { background: none; border: none; color: #ef4444; cursor: pointer; font-size: 14px; padding: 2px; }
+    .msg-send-row { display: flex; gap: 6px; margin-top: 8px; align-items: center; }
+    .msg-sent { color: #4ade80; font-size: 12px; font-weight: 600; opacity: 0; transition: opacity 0.3s; }
+    .msg-sent.visible { opacity: 1; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1><span>AMK Heritage Trail</span> &mdash; Race Dashboard</h1>
+      <div class="header-center">
+        <div class="race-timer" id="raceTimer">00:00:00</div>
+      </div>
+      <div class="header-right">
+        <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">☰</button>
+        <button class="settings-btn" id="settingsBtn" onclick="toggleSettings()">⚙</button>
+        <span class="status-pill status-not-started" id="raceStatus">Not Started</span>
+        <div class="conn-dot" id="connDot"></div>
+        <div class="status-dot" id="statusDot"></div>
+      </div>
+    </header>
+    <nav id="tabBar"><span class="tab-indicator" id="tabIndicator"></span></nav>
+    <div class="main">
+      <div id="mapView">
+        <div id="map">
+          <div class="map-legend">
+            <div class="map-legend-title">Map Legend</div>
+            <div class="map-legend-row">
+              <div class="map-legend-dot unvisited">3</div>
+              <div class="map-legend-label">Unvisited Checkpoint</div>
+            </div>
+            <div class="map-legend-row">
+              <div class="map-legend-dot completed">7</div>
+              <div class="map-legend-label">Completed <span class="map-legend-count">3</span></div>
+            </div>
+            <div class="map-legend-row">
+              <div class="map-legend-dot team-dot"></div>
+              <div class="map-legend-label">Team Location</div>
+            </div>
+          </div>
+        </div>
+        <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+        <div class="sidebar">
+          <div class="sidebar-section">
+            <h2>Race Controls</h2>
+            <div class="controls">
+              <button class="btn btn-success" id="btnStart" onclick="confirmAction('start')">▶ <span>Start</span></button>
+              <button class="btn btn-warning" id="btnPause" onclick="confirmAction('pause')">⏸ <span>Pause</span></button>
+              <button class="btn btn-primary" id="btnResume" onclick="confirmAction('resume')">▶ <span>Resume</span></button>
+              <button class="btn btn-primary" id="btnEnd" onclick="confirmAction('end')">⏹ <span>End</span></button>
+              <button class="btn btn-sm" id="btnReset" onclick="confirmAction('reset')" style="background:#64748b;color:#e2e8f0;">↺ <span>Reset</span></button>
+              <button class="btn btn-primary btn-sm" onclick="loadDashboard()">↻ Refresh</button>
+            </div>
+          </div>
+          <div class="sidebar-section">
+            <h2>HQ Messaging</h2>
+            <select class="msg-select" id="msgTarget"></select>
+            <textarea class="broadcast-area" id="msgText" placeholder="Type a message..." rows="2" style="margin-top:8px;"></textarea>
+            <div class="msg-attach-row">
+              <label class="msg-attach-btn" for="msgFile">📎 Attach</label>
+              <input type="file" id="msgFile" accept="image/*,.gif" style="display:none" onchange="document.getElementById('msgFileLabel').textContent=this.files[0]?.name||''; document.getElementById('msgClearFile').style.display=this.files.length?'':'none'">
+              <span class="msg-file-label" id="msgFileLabel"></span>
+              <button class="msg-clear-file" id="msgClearFile" style="display:none" onclick="document.getElementById('msgFile').value=''; document.getElementById('msgFileLabel').textContent=''; this.style.display='none'">✕</button>
+            </div>
+            <div class="msg-send-row">
+              <button class="btn btn-primary" onclick="sendMessage()">Send</button>
+              <span class="msg-sent" id="msgSent">Sent!</span>
+            </div>
+          </div>
+          <div class="sidebar-section" style="flex:1;display:flex;flex-direction:column;min-height:0;">
+            <h2>Teams</h2>
+            <div class="search-wrap">
+              <input class="team-search" id="teamSearch" type="text" placeholder="Search teams..." oninput="filterTeams(this.value)">
+            </div>
+            <div class="leaderboard-list" id="leaderboard"></div>
+          </div>
+          <div class="sidebar-section event-log">
+            <h2>Live Events</h2>
+            <div id="eventLog"><p style="color:#64748b;font-size:12px;">Waiting for events...</p></div>
+          </div>
+        </div>
+      </div>
+      <div id="teamView">
+        <div class="team-gallery" id="teamGallery"></div>
+      </div>
+      <div id="settingsView">
+        <img src="/ForK_Joann.gif" alt="" style="width: 90%; max-height: 90vh; object-fit: contain;">
+      </div>
+      <div class="lightbox-overlay" id="lightbox" onclick="closeLightbox(event)">
+        <button class="lightbox-close" onclick="closeLightbox(event)"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        <button class="lightbox-nav prev" onclick="navLightbox(-1, event)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <button class="lightbox-nav next" onclick="navLightbox(1, event)"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+        <div class="lightbox-container" onclick="event.stopPropagation()">
+          <img class="lightbox-img" id="lightboxImg" src="" alt="">
+          <div class="lightbox-info">
+            <div class="lb-cp" id="lightboxCp"></div>
+            <div class="lb-task" id="lightboxTask"></div>
+            <div class="lb-meta" id="lightboxMeta"></div>
+          </div>
+        </div>
+        <div class="lightbox-counter" id="lightboxCounter"></div>
+      </div>
+    </div>
+
+  <div class="modal-overlay" id="confirmModal">
+    <div class="modal-box">
+      <div class="modal-title" id="modalTitle"></div>
+      <div class="modal-message" id="modalMessage"></div>
+      <div class="modal-actions">
+        <button class="btn modal-cancel" id="modalCancel">Cancel</button>
+        <button class="btn" id="modalConfirm">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin;
+    let map, teamMarkers = {}, checkpointLayers = [];
+    let prevCompletedCheckpoints = new Set();
+    const teamColors = {};
+    const TOTAL_CHECKPOINTS = 12;
+    let currentTab = 'all';
+    let teamsData = [];
+    let previousRanks = {};
+    let raceStartTime = null;
+    let currentFilter = "";
+    let raceStartedAt = null;
+    let frozenElapsed = 0;
+    let timerInterval = null;
+    const TEAM_IDS = [
+      {name:"All", chatId:null},
+      {name:"T14", chatId:-5140570688},{name:"T13", chatId:-5158270882},{name:"T12", chatId:-1003858121688},
+      {name:"T11", chatId:-1003987743100},{name:"T10", chatId:-1003959727222},{name:"T9", chatId:-1003984411972},
+      {name:"T8", chatId:-1003845521239},{name:"T7", chatId:-1003943679959},{name:"T6", chatId:-1003958049460},
+      {name:"T5", chatId:-1003989054275},{name:"T4", chatId:-1003880325284},{name:"T3", chatId:-1003951510546},
+      {name:"T2", chatId:-1003959987630},{name:"T1", chatId:-1003958632337},
+      {name:"HQ", chatId:-5173862362},
+    ];
+
+    const AMK_POLYGON = [
+      [1.3610, 103.8355], [1.3605, 103.8535], [1.3630, 103.8695],
+      [1.3730, 103.8710], [1.3870, 103.8670], [1.3930, 103.8520],
+      [1.3900, 103.8350], [1.3750, 103.8280], [1.3620, 103.8280],
+    ];
+
+    function buildTabs() {
+      const bar = document.getElementById('tabBar');
+      const indicator = document.getElementById('tabIndicator');
+      bar.innerHTML = '<span class="tab-indicator" id="tabIndicator"></span>' + TEAM_IDS.map((t, i) => {
+        const cls = t.chatId === null ? 'tab all-tab' : 'tab';
+        return `<button class="${cls} ${currentTab === t.name ? 'active' : ''}" onclick="switchTab('${t.name}')">${t.name}</button>`;
+      }).join('');
+      requestAnimationFrame(() => updateTabIndicator());
+    }
+
+    function updateTabIndicator() {
+      const activeTab = document.querySelector('.tab.active');
+      const indicator = document.getElementById('tabIndicator');
+      const bar = document.getElementById('tabBar');
+      if (!activeTab || !indicator || !bar) return;
+      const barRect = bar.getBoundingClientRect();
+      const tabRect = activeTab.getBoundingClientRect();
+      indicator.style.left = (tabRect.left - barRect.left + bar.scrollLeft) + 'px';
+      indicator.style.width = tabRect.width + 'px';
+    }
+
+    function switchTab(name) {
+      currentTab = name;
+      buildTabs();
+      const mapView = document.getElementById('mapView');
+      const teamView = document.getElementById('teamView');
+      const settingsView = document.getElementById('settingsView');
+      [teamView, settingsView].forEach(v => { if (v) { v.classList.remove('visible'); v.style.display = 'none'; } });
+      if (name === 'All') {
+        const activeView = teamView.classList.contains('visible') || teamView.style.display === 'flex' ? teamView : settingsView;
+        activeView.classList.add('view-exit');
+        setTimeout(() => {
+          activeView.classList.remove('view-exit', 'visible');
+          activeView.style.display = '';
+          mapView.classList.remove('hidden');
+          mapView.classList.add('view-enter');
+          setTimeout(() => mapView.classList.remove('view-enter'), 250);
+          if (map) map.invalidateSize();
+        }, 150);
+      } else if (name === 'Settings') {
+        mapView.classList.add('view-exit');
+        setTimeout(() => {
+          mapView.classList.remove('view-exit');
+          mapView.classList.add('hidden');
+          settingsView.style.display = 'flex';
+          settingsView.classList.add('visible', 'view-enter');
+          setTimeout(() => settingsView.classList.remove('view-enter'), 250);
+        }, 150);
+      } else {
+        const activeView = mapView;
+        activeView.classList.add('view-exit');
+        setTimeout(() => {
+          activeView.classList.remove('view-exit');
+          activeView.classList.add('hidden');
+          teamView.style.display = 'flex';
+          teamView.classList.add('visible', 'view-enter');
+          setTimeout(() => teamView.classList.remove('view-enter'), 250);
+          loadTeamGallery(name);
+        }, 150);
+      }
+    }
+
+    function toggleSettings() {
+      const btn = document.getElementById('settingsBtn');
+      const mapView = document.getElementById('mapView');
+      const settingsView = document.getElementById('settingsView');
+      const teamView = document.getElementById('teamView');
+      if (settingsView.style.display === 'flex') {
+        settingsView.classList.add('view-exit');
+        setTimeout(() => {
+          settingsView.classList.remove('view-exit', 'visible');
+          settingsView.style.display = 'none';
+          mapView.classList.remove('hidden');
+          mapView.classList.add('view-enter');
+          setTimeout(() => mapView.classList.remove('view-enter'), 250);
+          if (map) map.invalidateSize();
+          btn.classList.remove('active');
+        }, 150);
+      } else {
+        teamView.style.display = 'none';
+        teamView.classList.remove('visible');
+        mapView.classList.add('view-exit');
+        setTimeout(() => {
+          mapView.classList.remove('view-exit');
+          mapView.classList.add('hidden');
+          settingsView.style.display = 'flex';
+          settingsView.classList.add('visible', 'view-enter');
+          setTimeout(() => settingsView.classList.remove('view-enter'), 250);
+          btn.classList.add('active');
+        }, 150);
+      }
+    }
+
+    function toggleSidebar() {
+      const sidebar = document.querySelector('.sidebar');
+      const overlay = document.getElementById('sidebarOverlay');
+      sidebar.classList.toggle('open');
+      overlay.classList.toggle('active');
+    }
+
+    function pickColor(id) {
+      if (teamColors[id]) return teamColors[id];
+      const hues = [10,30,190,280,340,50,160,220,120,0,70,310];
+      teamColors[id] = `hsl(${hues[Object.keys(teamColors).length % hues.length]}, 75%, 60%)`;
+      return teamColors[id];
+    }
+
+    function initMap() {
+      map = L.map("map", { zoomControl: false, attributionControl: false, maxBoundsViscosity: 0.8, minZoom: 15, maxZoom: 15 }).setView([1.3675, 103.8480], 15);
+      map.setMaxBounds(L.latLngBounds(AMK_POLYGON).pad(0.5).pad(0.3));
+
+      L.polygon(AMK_POLYGON, { color: "#2d5a1e", weight: 0, fillColor: "#1a4d1a", fillOpacity: 1.0, smoothFactor: 1 }).addTo(map);
+      L.polygon(AMK_POLYGON, { color: "#3a7a28", weight: 4, fillColor: "transparent", fillOpacity: 0, smoothFactor: 1 }).addTo(map);
+      L.polygon(AMK_POLYGON, { color: "rgba(58,122,40,0.2)", weight: 16, fillColor: "transparent", fillOpacity: 0, smoothFactor: 1 }).addTo(map);
+
+      const zones = [
+        { name: "Town Centre", poly: [[1.3675,103.8470],[1.3710,103.8470],[1.3710,103.8510],[1.3675,103.8510]], c: "rgba(251,191,36,0.10)", b: "rgba(251,191,36,0.35)" },
+        { name: "Teck Ghee", poly: [[1.3620,103.8470],[1.3675,103.8470],[1.3675,103.8535],[1.3630,103.8535]], c: "rgba(59,130,246,0.08)", b: "rgba(59,130,246,0.28)" },
+        { name: "Kebun Baru", poly: [[1.3635,103.8355],[1.3690,103.8355],[1.3690,103.8405],[1.3635,103.8405]], c: "rgba(168,85,247,0.08)", b: "rgba(168,85,247,0.28)" },
+        { name: "Cheng San", poly: [[1.3695,103.8510],[1.3870,103.8510],[1.3870,103.8670],[1.3730,103.8670]], c: "rgba(236,72,153,0.08)", b: "rgba(236,72,153,0.28)" },
+        { name: "Yio Chu Kang", poly: [[1.3730,103.8350],[1.3900,103.8350],[1.3900,103.8510],[1.3870,103.8510]], c: "rgba(20,184,166,0.08)", b: "rgba(20,184,166,0.28)" },
+      ];
+      zones.forEach(z => {
+        L.polygon(z.poly, { color: z.b, weight: 1, fillColor: z.c, fillOpacity: 1, dashArray: "5 4", smoothFactor: 1 }).addTo(map);
+        const c = L.latLngBounds(z.poly).getCenter();
+        L.marker(c, { icon: L.divIcon({ className: "", html: `<div style="color:rgba(255,255,255,0.45);font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;text-shadow:0 1px 4px rgba(0,0,0,0.9);white-space:nowrap;pointer-events:none;background:rgba(15,23,42,0.35);padding:2px 6px;border-radius:4px;">${z.name}</div>`, iconSize:[0,0], iconAnchor:[0,0] }), interactive:false }).addTo(map);
+      });
+
+      const roads = [
+        [[1.3595,103.8410],[1.3900,103.8410]], [[1.3595,103.8490],[1.3900,103.8490]],
+        [[1.3610,103.8355],[1.3610,103.8695]], [[1.3620,103.8460],[1.3900,103.8460]],
+        [[1.3595,103.8520],[1.3820,103.8520]], [[1.3670,103.8355],[1.3670,103.8695]],
+        [[1.3620,103.8380],[1.3820,103.8380]], [[1.3610,103.8430],[1.3900,103.8430]],
+        [[1.3630,103.8355],[1.3630,103.8600]], [[1.3670,103.8355],[1.3670,103.8535]],
+        [[1.3700,103.8355],[1.3700,103.8520]], [[1.3730,103.8355],[1.3730,103.8520]],
+        [[1.3760,103.8355],[1.3760,103.8520]], [[1.3800,103.8355],[1.3800,103.8520]],
+        [[1.3610,103.8355],[1.3820,103.8355]], [[1.3610,103.8380],[1.3820,103.8380]],
+        [[1.3610,103.8460],[1.3820,103.8460]],
+      ];
+      roads.forEach(coords => { L.polyline(coords, { color: "rgba(255,255,255,0.06)", weight: 1.5, smoothFactor: 1 }).addTo(map); });
+
+      const landmarks = [
+        { lat: 1.36939, lng: 103.84848, icon: "🏬", s: 22 },
+        { lat: 1.37018, lng: 103.84953, icon: "🚇", s: 22 },
+        { lat: 1.36800, lng: 103.85200, icon: "🏥", s: 20 },
+        { lat: 1.36200, lng: 103.84800, icon: "🌳", s: 20 },
+        { lat: 1.37100, lng: 103.84000, icon: "🏫", s: 18 },
+        { lat: 1.36700, lng: 103.85300, icon: "🏟️", s: 20 },
+        { lat: 1.36350, lng: 103.84500, icon: "🛍️", s: 20 },
+        { lat: 1.36600, lng: 103.83900, icon: "🏠", s: 18 },
+      ];
+      landmarks.forEach(lm => {
+        L.marker([lm.lat, lm.lng], {
+          icon: L.divIcon({ className: "", html: `<div style="font-size:${lm.s}px;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.6));pointer-events:none;">${lm.icon}</div>`, iconSize:[lm.s,lm.s], iconAnchor:[lm.s/2,lm.s/2] }),
+          interactive: false,
+        }).addTo(map);
+      });
+    }
+
+    async function loadDashboard() {
+      const el = document.getElementById("leaderboard");
+      if (el.children.length === 0 || el.querySelector('.no-submissions')) {
+        el.innerHTML = Array.from({length: 5}, () => '<div class="skeleton-card"><div class="skeleton skeleton-line w-75"></div><div class="skeleton skeleton-line w-50"></div><div class="skeleton skeleton-bar"></div><div class="skeleton-dots">' + Array.from({length: TOTAL_CHECKPOINTS}, () => '<div class="skeleton skeleton-dot"></div>').join('') + '</div></div>').join('');
+      }
+      try {
+        const [progressRes, checkpointsRes, statusRes] = await Promise.all([
+          fetch(`${API_BASE}/admin/progress/all`),
+          fetch(`${API_BASE}/admin/checkpoints`),
+          fetch(`${API_BASE}/admin/race/status`),
+        ]);
+        const progress = await progressRes.json();
+        const checkpoints = await checkpointsRes.json();
+        const status = await statusRes.json();
+        teamsData = progress;
+        renderTeams(progress, checkpoints);
+        renderCheckpoints(checkpoints, progress);
+        updateRaceStatus(status.status, status.started_at);
+      } catch (err) { console.error(err); }
+    }
+
+    function flipAnimate(container) {
+      const cards = [...container.querySelectorAll('.team-card')];
+      const firstRects = {};
+      cards.forEach(c => { firstRects[c.dataset.teamId] = c.getBoundingClientRect(); });
+      return firstRects;
+    }
+
+    function flipApply(container, firstRects) {
+      const cards = [...container.querySelectorAll('.team-card')];
+      cards.forEach(c => {
+        const first = firstRects[c.dataset.teamId];
+        if (!first) return;
+        const last = c.getBoundingClientRect();
+        const deltaY = first.top - last.top;
+        if (Math.abs(deltaY) > 1) {
+          c.style.transform = `translateY(${deltaY}px)`;
+          c.style.transition = "none";
+          requestAnimationFrame(() => {
+            c.style.transition = "transform 0.4s cubic-bezier(0.22, 1, 0.36, 1)";
+            c.style.transform = "";
+          });
+        }
+      });
+    }
+
+    function getRankBadge(rank) {
+      if (rank === 1) return '<div class="rank-badge gold">1</div>';
+      if (rank === 2) return '<div class="rank-badge silver">2</div>';
+      if (rank === 3) return '<div class="rank-badge bronze">3</div>';
+      return `<div class="rank-badge default">${rank}</div>`;
+    }
+
+    function getPace(team) {
+      if (!raceStartTime || team.completed_checkpoints.length === 0) return null;
+      const elapsedMin = Math.max((Date.now() - raceStartTime) / 60000, 0.1);
+      return (team.completed_checkpoints.length / elapsedMin).toFixed(2);
+    }
+
+    function detectRankChanges(sortedTeams) {
+      const newRanks = {};
+      sortedTeams.forEach((t, i) => { newRanks[t.chat_id] = i + 1; });
+      const changes = {};
+      sortedTeams.forEach(t => {
+        const prev = previousRanks[t.chat_id];
+        const curr = newRanks[t.chat_id];
+        if (prev === undefined) changes[t.chat_id] = "new";
+        else if (curr < prev) changes[t.chat_id] = "up";
+        else if (curr > prev) changes[t.chat_id] = "down";
+      });
+      previousRanks = newRanks;
+      return changes;
+    }
+
+    function filterTeams(query) {
+      currentFilter = query.toLowerCase().trim();
+      const cards = document.querySelectorAll("#leaderboard .team-card");
+      cards.forEach(c => {
+        const name = c.dataset.teamName || "";
+        c.style.display = name.includes(currentFilter) ? "" : "none";
+      });
+    }
+
+    function renderTeams(progress, checkpoints) {
+      const el = document.getElementById("leaderboard");
+      if (!progress.length) { el.innerHTML = '<p style="color:#64748b;font-size:12px;">No teams.</p>'; return; }
+      progress.sort((a, b) => b.score - a.score);
+      const rankChanges = detectRankChanges(progress);
+      const firstRects = flipAnimate(el);
+      el.innerHTML = progress.map((t, i) => {
+        const rank = i + 1;
+        const pct = Math.round((t.completed_checkpoints.length / TOTAL_CHECKPOINTS) * 100);
+        const dots = Array.from({length: TOTAL_CHECKPOINTS}, (_, idx) => {
+          const cp = checkpoints.find(c => c.checkpoint_id === (idx + 1));
+          const done = cp && t.completed_checkpoints.includes(cp.checkpoint_id);
+          return `<div class="cp-dot ${done ? 'done' : ''}">${idx + 1}</div>`;
+        }).join("");
+        const teamTab = TEAM_IDS.find(x => x.chatId === t.chat_id);
+        const pace = getPace(t);
+        const change = rankChanges[t.chat_id] || "";
+        const changeClass = change === "up" ? "rank-up" : change === "down" ? "rank-down" : change === "new" ? "rank-new" : "";
+        const hidden = currentFilter && !(t.team_name || "").toLowerCase().includes(currentFilter) ? 'style="display:none"' : "";
+        return `<div class="team-card ${changeClass}" data-rank="${rank}" data-team-id="${t.chat_id}" data-team-name="${(t.team_name || "").toLowerCase()}" onclick="${teamTab ? `switchTab('${teamTab.name}')` : ''}" ${hidden}>
+          <div class="card-header">
+            ${getRankBadge(rank)}
+            <div class="name">${t.team_name}</div>
+            <span class="status-badge ${t.status}">${t.status.replace("_", " ")}</span>
+          </div>
+          <div class="meta">
+            <span class="score">${t.score} pts &middot; ${t.completed_checkpoints.length}/${TOTAL_CHECKPOINTS}</span>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+          <div class="cp-dots">${dots}</div>
+          ${pace !== null ? `<div class="pace"><span>${pace}</span> cp/min</div>` : ""}
+        </div>`;
+      }).join("");
+      requestAnimationFrame(() => flipApply(el, firstRects));
+    }
+
+    function renderCheckpoints(checkpoints, progress) {
+      checkpointLayers.forEach(m => map.removeLayer(m));
+      checkpointLayers = [];
+      const allCompleted = {};
+      progress.forEach(t => { t.completed_checkpoints.forEach(cpId => { allCompleted[cpId] = (allCompleted[cpId] || 0) + 1; }); });
+      const currentCompleted = new Set(Object.keys(allCompleted).map(Number));
+
+      checkpoints.forEach((cp, i) => {
+        const cpId = cp.checkpoint_id;
+        const doneCount = allCompleted[cpId] || 0;
+        const isDone = doneCount > 0;
+        const isNewlyDone = isDone && !prevCompletedCheckpoints.has(cpId);
+        const ring = isDone ? "#22c55e" : "#f59e0b";
+        const shadow = isDone ? "rgba(34,197,94,0.6)" : "rgba(245,158,11,0.5)";
+        const imgUrl = `${API_BASE}/admin/checkpoints/${cpId}/image?t=${Date.now()}`;
+        const numBadge = `<div style="position:absolute;top:-7px;right:-7px;width:22px;height:22px;border-radius:50%;background:${ring};color:white;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;border:2px solid #0f172a;box-shadow:0 2px 6px rgba(0,0,0,0.5);">${i + 1}</div>`;
+        const floatAnim = `animation:float ${2.5+(i*0.12)}s ease-in-out infinite;animation-delay:${i*0.08}s;`;
+        const extraClass = isNewlyDone ? ' cp-newly-done' : '';
+        const pulseRing = !isDone ? '<div class="cp-pulse-ring"></div>' : '';
+        const burstRing = isNewlyDone ? '<div class="cp-burst-ring"></div>' : '';
+        const iconHtml = `<div style="${floatAnim}position:relative;" class="${extraClass}">
+          <div style="width:44px;height:44px;border-radius:50%;overflow:hidden;border:3px solid ${ring};box-shadow:0 2px 8px ${shadow},0 0 0 3px rgba(0,0,0,0.3),0 0 20px ${shadow};position:relative;">
+            <img src="${imgUrl}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='<div style=\\'width:100%;height:100%;background:#334155;display:flex;align-items:center;justify-content:center;color:white;font-size:18px;font-weight:800;\\'>${i+1}</div>'">
+            ${numBadge}
+            ${isDone ? `<div style="position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);background:#22c55e;color:white;font-size:9px;padding:1px 6px;border-radius:8px;font-weight:700;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.3);">${doneCount}</div>` : ''}
+          </div>${pulseRing}${burstRing}</div>`;
+
+        const marker = L.marker([cp.latitude, cp.longitude], {
+          icon: L.divIcon({ className: "", html: iconHtml, iconSize: [44, 52], iconAnchor: [22, 22] }),
+        }).addTo(map);
+        marker.bindPopup(`<div style="min-width:240px;font-family:'Segoe UI',system-ui,sans-serif;">
+          <img src="${imgUrl}" style="width:100%;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,0.4);" onerror="this.style.display='none'">
+          <div style="margin-top:10px;display:flex;align-items:center;gap:8px;">
+            <div style="width:28px;height:28px;border-radius:50%;background:${ring};color:white;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;flex-shrink:0;">${i+1}</div>
+            <div><div style="font-weight:700;font-size:15px;color:#f1f5f9;">${cp.name}</div><div style="font-size:11px;color:#94a3b8;">${isDone?doneCount+' team(s) completed':'Not yet reached'}</div></div>
+          </div><div style="color:#cbd5e1;font-size:13px;margin-top:8px;">${cp.task_description||''}</div></div>`);
+        checkpointLayers.push(marker);
+      });
+      prevCompletedCheckpoints = currentCompleted;
+    }
+
+    let lightboxPhotos = [];
+    let lightboxIndex = 0;
+
+    function openLightbox(index) {
+      lightboxIndex = index;
+      updateLightbox();
+      document.getElementById('lightbox').classList.add('active');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeLightbox(e) {
+      if (e && e.target !== e.currentTarget && !e.currentTarget.classList.contains('lightbox-close')) return;
+      document.getElementById('lightbox').classList.remove('active');
+      document.body.style.overflow = '';
+    }
+
+    function navLightbox(dir, e) {
+      if (e) e.stopPropagation();
+      lightboxIndex = (lightboxIndex + dir + lightboxPhotos.length) % lightboxPhotos.length;
+      updateLightbox();
+    }
+
+    function updateLightbox() {
+      const photo = lightboxPhotos[lightboxIndex];
+      if (!photo) return;
+      document.getElementById('lightboxImg').src = photo.imgSrc;
+      document.getElementById('lightboxCp').textContent = photo.cpName;
+      document.getElementById('lightboxTask').textContent = photo.taskDesc || '';
+      document.getElementById('lightboxMeta').innerHTML = `<span>🕐 ${photo.timeStr}</span><span class="cp-status-badge ${photo.completed ? 'completed' : 'uncompleted'}" style="position:static;margin:0;">${photo.completed ? '✓ Completed' : 'Pending'}</span>`;
+      document.getElementById('lightboxCounter').textContent = `${lightboxIndex + 1} / ${lightboxPhotos.length}`;
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (!document.getElementById('lightbox').classList.contains('active')) return;
+      if (e.key === 'Escape') closeLightbox({ target: document.getElementById('lightbox'), currentTarget: document.getElementById('lightbox') });
+      else if (e.key === 'ArrowLeft') navLightbox(-1);
+      else if (e.key === 'ArrowRight') navLightbox(1);
+    });
+
+    async function loadTeamGallery(tabName) {
+      const team = TEAM_IDS.find(t => t.name === tabName);
+      console.log('loadTeamGallery:', tabName, '->', team ? {name: team.name, chatId: team.chatId} : 'NOT FOUND');
+      if (!team || !team.chatId) return;
+      const gallery = document.getElementById('teamGallery');
+
+      gallery.innerHTML = '<div class="team-gallery"><div class="skeleton-gallery">' + Array.from({length: 6}, () => '<div class="skeleton-gallery-card"><div class="skeleton skeleton-img"></div><div class="skeleton-body"><div class="skeleton skeleton-line w-75"></div><div class="skeleton skeleton-line w-50"></div><div class="skeleton skeleton-line w-100"></div></div></div>').join('') + '</div></div>';
+
+      try {
+        const res = await fetch(`${API_BASE}/admin/teams/${team.chatId}/submissions`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const progressRes = await fetch(`${API_BASE}/admin/progress/all`);
+        if (!progressRes.ok) throw new Error(`HTTP ${progressRes.status}`);
+        const allProgress = await progressRes.json();
+        const teamProgress = allProgress.find(t => t.chat_id === team.chatId) || {};
+
+        const completedSet = new Set(teamProgress.completed_checkpoints || []);
+        const completed = completedSet.size;
+        const score = teamProgress.score || 0;
+
+        const backBtn = `<button class="gallery-back-btn" onclick="switchTab('All')"><svg viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back to Dashboard</button>`;
+
+        if (!data.submissions.length) {
+          gallery.innerHTML = `${backBtn}<div class="no-submissions"><div class="icon">📸</div><p>No submissions yet.</p></div>`;
+          return;
+        }
+
+        console.log('Team gallery submissions:', data.submissions.length, data.submissions.map(s => s.sub_id));
+        lightboxPhotos = [];
+        let html = `${backBtn}<div class="team-gallery-header">
+          <h2>${data.team_name}</h2>
+          <div class="stats">
+            <div class="stat"><div class="label">Checkpoints</div><div class="value">${completed} / ${TOTAL_CHECKPOINTS}</div></div>
+            <div class="stat"><div class="label">Score</div><div class="value">${score}</div></div>
+            <div class="stat"><div class="label">Photos</div><div class="value">${data.submissions.length}</div></div>
+          </div>
+        </div>
+        <div class="gallery-grid">`;
+
+        data.submissions.forEach((s, idx) => {
+          const timeStr = s.timestamp ? new Date(s.timestamp).toLocaleString('en-SG', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit', second:'2-digit' }) : 'N/A';
+          const isCompleted = completedSet.has(s.checkpoint_order);
+          const imgSrc = `${API_BASE}/admin/submissions/${s.sub_id}/image?t=${Date.now()}`;
+          console.log('Gallery image URL:', imgSrc);
+          lightboxPhotos.push({ imgSrc, cpName: `CP${s.checkpoint_order}: ${s.checkpoint_name}`, taskDesc: s.task_description, timeStr, completed: isCompleted });
+          html += `<div class="gallery-card">
+            <div class="card-img-wrap" onclick="openLightbox(${idx})">
+              <img class="card-img" src="${imgSrc}" onerror="console.error('Image failed:', this.src)">
+              <div class="card-img-gradient"></div>
+              <div class="cp-status-badge ${isCompleted ? 'completed' : 'uncompleted'}">${isCompleted ? '✓ Completed' : 'Pending'}</div>
+              <div class="card-hover-overlay">
+                <div class="magnify-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg></div>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="card-cp">CP${s.checkpoint_order}: ${s.checkpoint_name}</div>
+              <div class="card-task">${s.task_description || ''}</div>
+              <div class="card-meta">
+                <div class="card-time">🕐 ${timeStr}</div>
+                <span class="card-badge">#${s.checkpoint_order}</span>
+              </div>
+            </div>
+          </div>`;
+        });
+
+        html += '</div>';
+        gallery.innerHTML = html;
+        console.log('Gallery innerHTML set, length:', gallery.innerHTML.length, 'children:', gallery.children.length, 'teamView display:', document.getElementById('teamView').style.display, 'teamView visible:', document.getElementById('teamView').classList.contains('visible'));
+      } catch (err) {
+        gallery.innerHTML = `<div class="no-submissions"><div class="icon">⚠️</div><p>Failed to load data.</p></div>`;
+      }
+    }
+
+    let currentRaceStatus = 'not_started';
+
+    function updateButtonStates() {
+      const startBtn = document.getElementById("btnStart");
+      const pauseBtn = document.getElementById("btnPause");
+      const resumeBtn = document.getElementById("btnResume");
+      const endBtn = document.getElementById("btnEnd");
+      const resetBtn = document.getElementById("btnReset");
+      const isActive = currentRaceStatus === 'in_progress' || currentRaceStatus === 'paused';
+      startBtn.disabled = currentRaceStatus !== 'not_started';
+      pauseBtn.disabled = currentRaceStatus !== 'in_progress';
+      resumeBtn.disabled = currentRaceStatus !== 'paused';
+      endBtn.disabled = !isActive;
+      resetBtn.disabled = isActive;
+      const tooltipText = currentRaceStatus === 'in_progress' ? 'Race In Progress' : currentRaceStatus === 'paused' ? 'Race Paused' : 'Race Not Started';
+      startBtn.setAttribute('data-tooltip', tooltipText);
+      pauseBtn.setAttribute('data-tooltip', tooltipText);
+      resumeBtn.setAttribute('data-tooltip', tooltipText);
+      endBtn.setAttribute('data-tooltip', tooltipText);
+      resetBtn.setAttribute('data-tooltip', tooltipText);
+    }
+
+    function formatElapsed(ms) {
+      var totalSec = Math.floor(ms / 1000);
+      var h = String(Math.floor(totalSec / 3600)).padStart(2, '0');
+      var m = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
+      var s = String(totalSec % 60).padStart(2, '0');
+      return h + ':' + m + ':' + s;
+    }
+
+    function updateTimerDisplay() {
+      var elapsed = raceStartedAt ? Date.now() - raceStartedAt : frozenElapsed;
+      document.getElementById('raceTimer').textContent = formatElapsed(elapsed);
+    }
+
+    function startTimer() {
+      if (timerInterval) clearInterval(timerInterval);
+      timerInterval = setInterval(updateTimerDisplay, 1000);
+      updateTimerDisplay();
+    }
+
+    function stopTimer() {
+      if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+    }
+
+    function updateRaceStatus(status, started_at) {
+      var dot = document.getElementById("statusDot");
+      var text = document.getElementById("raceStatus");
+      var timer = document.getElementById("raceTimer");
+      currentRaceStatus = status || 'not_started';
+      dot.className = "status-dot";
+      text.className = "status-pill";
+      if (status === "in_progress") {
+        dot.classList.add("active");
+        text.classList.add("status-in-progress");
+        text.textContent = "Live";
+        timer.classList.add("timer-active");
+        if (started_at && !timerInterval) {
+          if (frozenElapsed > 0) {
+            raceStartedAt = Date.now() - frozenElapsed;
+            frozenElapsed = 0;
+          } else {
+            raceStartedAt = new Date(started_at).getTime();
+          }
+          startTimer();
+        }
+        updateButtonStates();
+      } else if (status === "paused") {
+        dot.classList.add("paused");
+        text.classList.add("status-paused");
+        text.textContent = "Paused";
+        timer.classList.remove("timer-active");
+        if (raceStartedAt) {
+          frozenElapsed = Date.now() - raceStartedAt;
+        }
+        stopTimer();
+        updateTimerDisplay();
+        updateButtonStates();
+      } else if (status === "completed") {
+        text.classList.add("status-completed");
+        text.textContent = "Completed";
+        timer.classList.remove("timer-active");
+        if (raceStartedAt) {
+          frozenElapsed = Date.now() - raceStartedAt;
+        }
+        stopTimer();
+        updateTimerDisplay();
+        updateButtonStates();
+      } else {
+        text.classList.add("status-not-started");
+        text.textContent = "Not Started";
+        timer.classList.remove("timer-active");
+        raceStartedAt = null;
+        frozenElapsed = 0;
+        stopTimer();
+        document.getElementById("raceTimer").textContent = "00:00:00";
+        updateButtonStates();
+      }
+    }
+
+    function addEvent(data) {
+      const el = document.getElementById("eventLog");
+      if (el.querySelector("p")) el.innerHTML = "";
+      const time = new Date().toLocaleTimeString();
+      let msg = "";
+      if (data.type === "checkpoint_unlocked") msg = `<b>${data.team_name}</b> submitted <b>${data.checkpoint_name}</b>`;
+      else if (data.type === "team_completed") msg = `<b>${data.team_name}</b> completed the race! (${data.final_score} pts)`;
+      else if (data.type === "race_started") msg = "Race has started!";
+      else if (data.type === "race_paused") msg = "Race has been paused.";
+      else if (data.type === "race_resumed") msg = "Race has resumed.";
+      else if (data.type === "score_adjusted") msg = `<b>${data.team_name}</b> score adjusted by ${data.delta}`;
+      else if (data.type === "race_tracking") return;
+      if (!msg) return;
+      el.innerHTML = `<div class="event-item ${data.type}"><div class="time">${time}</div>${msg}</div>` + el.innerHTML;
+      if (el.children.length > 50) el.lastChild.remove();
+    }
+
+    function updateTeamMarker(data) {
+      const key = `${data.chat_id}-${data.user_id}`;
+      const color = pickColor(data.chat_id);
+      if (teamMarkers[key]) { teamMarkers[key].setLatLng([data.latitude, data.longitude]); }
+      else { teamMarkers[key] = L.circleMarker([data.latitude, data.longitude], { radius: 6, color, fillColor: color, fillOpacity: 0.9, weight: 2 }).addTo(map); }
+    }
+
+    function confirmAction(action) {
+      const configs = {
+        start: { title: "Start Race", message: "Start the race? All teams will be able to begin.", confirmText: "Start", confirmClass: "btn-success", path: "/admin/race/start" },
+        pause: { title: "Pause Race", message: "Pause the race? Timer will stop.", confirmText: "Pause", confirmClass: "btn-warning", path: "/admin/race/pause" },
+        resume: { title: "Resume Race", message: "Resume the race?", confirmText: "Resume", confirmClass: "btn-primary", path: "/admin/race/resume" },
+        end: { title: "End Race", message: "End the race for all teams? This cannot be undone.", confirmText: "End Race", confirmClass: "btn-primary", path: "/admin/race/end" },
+        reset: { title: "Reset Race", message: "Reset all scores and progress? This cannot be undone.", confirmText: "Reset", confirmClass: "btn-warning", path: "/admin/race/reset" },
+      };
+      const cfg = configs[action];
+      if (!cfg) return;
+      openConfirmModal(cfg.title, cfg.message, cfg.confirmText, cfg.confirmClass, () => apiCall(cfg.path, "POST"));
+    }
+
+    let confirmCallback = null;
+    function openConfirmModal(title, message, confirmText, confirmClass, onConfirm) {
+      const overlay = document.getElementById("confirmModal");
+      const titleEl = document.getElementById("modalTitle");
+      const msgEl = document.getElementById("modalMessage");
+      const confirmBtn = document.getElementById("modalConfirm");
+      confirmBtn.className = "btn " + confirmClass;
+      titleEl.textContent = title;
+      msgEl.textContent = message;
+      confirmBtn.textContent = confirmText;
+      confirmCallback = onConfirm;
+      overlay.classList.add("open");
+      confirmBtn.focus();
+    }
+
+    function closeConfirmModal() {
+      document.getElementById("confirmModal").classList.remove("open");
+      confirmCallback = null;
+    }
+
+    document.getElementById("modalConfirm").addEventListener("click", () => { if (confirmCallback) confirmCallback(); closeConfirmModal(); });
+    document.getElementById("modalCancel").addEventListener("click", closeConfirmModal);
+    document.getElementById("confirmModal").addEventListener("click", (e) => { if (e.target === e.currentTarget) closeConfirmModal(); });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeConfirmModal(); });
+
+    async function apiCall(path, method) {
+      try { const res = await fetch(`${API_BASE}${path}`, { method }); const data = await res.json(); setTimeout(loadDashboard, 500); return data; }
+      catch (err) { console.error(err); }
+    }
+
+    function initSSE() {
+      const connDot = document.getElementById("connDot");
+      const es = new EventSource(`${API_BASE}/admin/events/stream`);
+      es.onopen = () => connDot.classList.add("live");
+      es.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.chat_id && data.latitude) updateTeamMarker(data);
+          else addEvent(data);
+           if (["race_started","race_paused","race_resumed","checkpoint_unlocked","team_completed"].includes(data.type)) {
+             if (data.type === "race_started") raceStartTime = Date.now();
+             updateRaceStatus(data.type === "race_started" ? "in_progress" : data.type === "race_paused" ? "paused" : "in_progress", null);
+            setTimeout(loadDashboard, 1000);
+            if (currentTab !== 'All') setTimeout(() => loadTeamGallery(currentTab), 1200);
+          }
+        } catch (e) { console.error(e); }
+      };
+      es.onerror = () => connDot.classList.remove("live");
+    }
+
+    function populateMsgTargets() {
+      const sel = document.getElementById('msgTarget');
+      TEAM_IDS.forEach(t => {
+        if (t.name === 'All' || t.chatId === null || t.name === 'HQ' || t.name === 'Settings') return;
+        const opt = document.createElement('option');
+        opt.value = t.chatId;
+        opt.textContent = t.name;
+        sel.appendChild(opt);
+      });
+      const allOpt = document.createElement('option');
+      allOpt.value = 0;
+      allOpt.textContent = 'All Teams';
+      sel.insertBefore(allOpt, sel.firstChild);
+    }
+
+    async function sendMessage() {
+      const chatId = document.getElementById('msgTarget').value;
+      const textarea = document.getElementById('msgText');
+      const fileInput = document.getElementById('msgFile');
+      const sentEl = document.getElementById('msgSent');
+      const msg = textarea.value.trim();
+      if (!msg && !fileInput.files.length) return;
+      const formData = new FormData();
+      formData.append('message', msg);
+      formData.append('chat_id', chatId);
+      if (fileInput.files.length) formData.append('file', fileInput.files[0]);
+      try {
+        const res = await fetch(`${API_BASE}/admin/send-message`, { method: 'POST', body: formData });
+        const data = await res.json();
+        sentEl.classList.add('visible');
+        setTimeout(() => sentEl.classList.remove('visible'), 2000);
+        textarea.value = '';
+        fileInput.value = '';
+        document.getElementById('msgFileLabel').textContent = '';
+        document.getElementById('msgClearFile').style.display = 'none';
+      } catch (err) { console.error(err); }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      document.getElementById("raceTimer").textContent = "00:00:00";
+      buildTabs();
+      populateMsgTargets();
+      initMap();
+      initSSE();
+      loadDashboard();
+      setInterval(loadDashboard, 10000);
+      window.addEventListener('resize', updateTabIndicator);
+      new ResizeObserver(updateTabIndicator).observe(document.getElementById('tabBar'));
+    });
+  </script>
+</body>
+</html>
